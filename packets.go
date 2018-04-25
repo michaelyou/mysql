@@ -42,6 +42,7 @@ func (mc *mysqlConn) readPacket() ([]byte, error) {
 		pktLen := int(uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16)
 
 		// check packet sync [8 bit]
+		fmt.Println(data[3])
 		if data[3] != mc.sequence {
 			if data[3] > mc.sequence {
 				return nil, ErrPktSyncMul
@@ -121,6 +122,7 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 		n, err := mc.netConn.Write(data[:4+size])
 		if err == nil && n == 4+size {
 			mc.sequence++
+			// 如果正好等于maxPacketSize，也要再发一个包
 			if size != maxPacketSize {
 				return nil
 			}
@@ -425,6 +427,8 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
 
+	// 这里预先空出前4个byte，writePacket中会写前4个byte
+	// data[:3]是长度，data[3]是sequenceID
 	data := mc.buf.takeSmallBuffer(4 + 1)
 	if data == nil {
 		// can not take the buffer. Something must be wrong with the connection
@@ -548,6 +552,7 @@ func (mc *mysqlConn) readResultSetHeaderPacket() (int, error) {
 		}
 
 		// column count
+		// 普通query
 		num, _, n := readLengthEncodedInteger(data)
 		if n-len(data) == 0 {
 			return int(num), nil
@@ -631,10 +636,13 @@ func (mc *mysqlConn) handleOkPacket(data []byte) error {
 
 // Read Packets as Field Packets until EOF-Packet or an Error appears
 // http://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnDefinition41
+// 这里只是读出了column的信息，也就是数据库字段信息，并没有读出真正查询到的结果。
+// 查询结果要等到调用Next方法才会读出
 func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 	columns := make([]mysqlField, count)
 
 	for i := 0; ; i++ {
+		// 每个列认为是一个package
 		data, err := mc.readPacket()
 		if err != nil {
 			return nil, err
@@ -698,6 +706,7 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 			return nil, err
 		}
 
+		// 填充值和字符编码
 		// Filler [uint8]
 		// Charset [charset, collation uint8]
 		pos += n + 1 + 2
@@ -725,8 +734,9 @@ func (mc *mysqlConn) readColumns(count int) ([]mysqlField, error) {
 	}
 }
 
-// Read Packets as Field Packets until EOF-Packet or an Error appears
+// Read Packets as Row Data Packets until EOF-Packet or an Error appears
 // http://dev.mysql.com/doc/internals/en/com-query-response.html#packet-ProtocolText::ResultsetRow
+// 虽然driver.Value实际是空接口类型，但是真实写入时除了time相关的类型会转化，其余均是[]byte
 func (rows *textRows) readRow(dest []driver.Value) error {
 	mc := rows.mc
 
@@ -761,6 +771,7 @@ func (rows *textRows) readRow(dest []driver.Value) error {
 
 	for i := range dest {
 		// Read bytes and convert to string
+		// dest[i]这时候是byte[]
 		dest[i], isNull, n, err = readLengthEncodedString(data[pos:])
 		pos += n
 		if err == nil {

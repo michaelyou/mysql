@@ -10,6 +10,7 @@ package mysql
 
 import (
 	"database/sql/driver"
+	// "fmt"
 	"io"
 	"net"
 	"strconv"

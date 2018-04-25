@@ -561,6 +561,15 @@ func skipLengthEncodedString(b []byte) (int, error) {
 }
 
 // returns the number read, whether the value is NULL and the number of bytes read
+// 数据长度不固定，长度值由数据前的1-9个字节决定，其中长度值所占的字节数不定，字节数由第1个字节决定
+/*
+	第一个字节值     后续字节数      长度值说明
+	0-250            0               第一个字节值即为数据的真实长度
+	251              0               空数据，数据的真实长度为零
+	252              2               后续额外2个字节标识了数据的真实长度
+	253              3               后续额外3个字节标识了数据的真实长度
+	254              8               后续额外8个字节标识了数据的真实长度
+*/
 func readLengthEncodedInteger(b []byte) (uint64, bool, int) {
 	// See issue #349
 	if len(b) == 0 {

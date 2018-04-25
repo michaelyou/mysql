@@ -45,6 +45,7 @@ func (mc *mysqlConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 	}
 	defer mc.finish()
 
+	// mysql的innodb默认的事务隔离级别是可重复读，存在幻读
 	if sql.IsolationLevel(opts.Isolation) != sql.LevelDefault {
 		level, err := mapIsolationLevel(opts.Isolation)
 		if err != nil {

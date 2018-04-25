@@ -93,6 +93,7 @@ func (stmt *mysqlStmt) Query(args []driver.Value) (driver.Rows, error) {
 }
 
 func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
+	fmt.Println("hello")
 	if stmt.mc.closed.IsSet() {
 		errLog.Print(ErrInvalidConn)
 		return nil, driver.ErrBadConn
@@ -107,6 +108,7 @@ func (stmt *mysqlStmt) query(args []driver.Value) (*binaryRows, error) {
 
 	// Read Result
 	resLen, err := mc.readResultSetHeaderPacket()
+	fmt.Println("resLen", resLen)
 	if err != nil {
 		return nil, err
 	}
